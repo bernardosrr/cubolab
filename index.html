@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>CuboLab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" class="logo" aria-hidden="true"><rect x="2" y="2" width="6" height="6" rx="1.3" fill="#ffd500"/><rect x="9" y="2" width="6" height="6" rx="1.3" fill="#16b45a"/><rect x="16" y="2" width="6" height="6" rx="1.3" fill="#e5333b"/><rect x="2" y="9" width="6" height="6" rx="1.3" fill="#2a6cf0"/><rect x="9" y="9" width="6" height="6" rx="1.3" fill="#f4f4f4"/><rect x="16" y="9" width="6" height="6" rx="1.3" fill="#ff8a1f"/><rect x="2" y="16" width="6" height="6" rx="1.3" fill="#16b45a"/><rect x="9" y="16" width="6" height="6" rx="1.3" fill="#ffd500"/><rect x="16" y="16" width="6" height="6" rx="1.3" fill="#2a6cf0"/></svg>
+    <span>CuboLab</span>
+  </div>
+  <nav class="tabs">
+    <a href="#timer" data-page="timer">Timer</a>
+    <a href="#evolucao" data-page="evolucao">Evolução</a>
+    <a href="#aprender" data-page="aprender">Aprender</a>
+  </nav>
+  <div class="top-actions">
+    <select id="puzzleSel" title="Cubo"></select>
+    <button id="settingsBtn" class="icon-btn" title="Definições e dados" aria-label="Definições">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main>
+  <!-- TIMER -->
+  <section id="page-timer" class="page">
+    <aside class="sidebar">
+      <table class="stats" id="statsTable"></table>
+      <div class="session-info" id="sessionInfo"></div>
+      <div class="times-wrap"><table class="times" id="timesTable"></table></div>
+    </aside>
+    <div class="timer-main" id="timerMain">
+      <div class="scramble-bar">
+        <div id="scramble" class="scramble"></div>
+        <div class="scramble-actions">
+          <button id="prevScr" class="btn-ghost" title="Baralhamento anterior">←</button>
+          <button id="newScr" class="btn-ghost" title="Novo baralhamento">Novo</button>
+          <button id="copyScr" class="btn-ghost" title="Copiar">Copiar</button>
+        </div>
+      </div>
+      <div class="timer-center" id="timerCenter">
+        <div class="time-row"><div id="time" class="time">0.00</div><div id="diff" class="diff"></div></div>
+        <div id="lastActions" class="last-actions"></div>
+        <div id="liveAvgs" class="live-avgs"></div>
+        <div class="hint" id="hint"></div>
+      </div>
+      <div id="net" class="net" title="Estado depois do baralhamento (branco em cima, verde à frente)"></div>
+    </div>
+  </section>
+
+  <!-- EVOLUÇÃO -->
+  <section id="page-evolucao" class="page">
+    <div class="container">
+      <div class="page-head">
+        <div>
+          <h1>Evolução <span class="muted" id="evoPuzzle"></span></h1>
+          <p class="muted">Como os teus tempos estão a mudar ao longo do tempo.</p>
+        </div>
+        <div class="seg" id="evoRange">
+          <button data-range="all" class="on">Tudo</button>
+          <button data-range="90">90 dias</button>
+          <button data-range="30">30 dias</button>
+          <button data-range="7">7 dias</button>
+        </div>
+      </div>
+      <div id="evoEmpty" class="empty hidden">Ainda não há resoluções neste cubo. Vai ao <a href="#timer">Timer</a> ou importa o histórico do csTimer nas definições (⚙).</div>
+      <div id="evoContent">
+        <div class="kpis" id="kpis"></div>
+        <div class="card">
+          <div class="card-head"><h2>Tempos por resolução</h2><div class="legend" id="legendSolves"></div></div>
+          <div class="chart-box tall"><canvas id="chartSolves"></canvas></div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-head"><h2>Média por dia</h2></div>
+            <div class="chart-box"><canvas id="chartDaily"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Distribuição <span class="muted small" id="distLabel"></span></h2></div>
+            <div class="chart-box"><canvas id="chartDist"></canvas></div>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-head"><h2>Recordes pessoais</h2></div>
+            <div id="pbList" class="pb-list"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Algoritmos</h2><a href="#aprender" class="small">Abrir →</a></div>
+            <div id="algProgress"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- APRENDER -->
+  <section id="page-aprender" class="page">
+    <div class="container wide">
+      <div class="page-head">
+        <div>
+          <h1>Aprender</h1>
+          <p class="muted" id="setDesc"></p>
+        </div>
+        <div class="learn-actions">
+          <select id="groupFilter" title="Filtrar por grupo"></select>
+          <button id="trainBtn" class="btn-primary">Treinar reconhecimento</button>
+        </div>
+      </div>
+      <div class="seg big" id="setTabs"></div>
+      <div class="set-progress" id="setProgress"></div>
+      <div class="board" id="board"></div>
+    </div>
+  </section>
+</main>
+
+<div id="modalRoot"></div>
+<div id="toast" class="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="cube.js"></script>
+<script src="algs.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
