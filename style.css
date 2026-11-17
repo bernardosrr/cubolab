@@ -268,3 +268,17 @@ h2 { font-size: 15px; margin: 0; font-weight: 600; }
   .case-detail { grid-template-columns: 1fr; justify-items: center; }
   .live-avgs { gap: 16px; }
 }
+
+/* ---------- Conta / sincronização ---------- */
+.account-btn { height: 36px; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); font-weight: 500; position: relative; }
+.account-btn:hover { border-color: #3a4150; }
+.account-btn.in { width: 36px; padding: 0; justify-content: center; border-radius: 50%; }
+.account-btn img, .account-btn .initial { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-weight: 600; object-fit: cover; }
+.sync-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: var(--muted); }
+.account-btn .sync-dot { position: absolute; right: -1px; bottom: -1px; box-shadow: 0 0 0 2px var(--panel); }
+.sync-dot.big { width: 12px; height: 12px; }
+.sync-dot.ok { background: var(--green); }
+.sync-dot.syncing { background: var(--orange); animation: pulse 1s infinite alternate; }
+.sync-dot.error { background: var(--red); }
+.sync-dot.offline { background: var(--muted); }
+@keyframes pulse { to { opacity: .35; } }

@@ -17,17 +17,30 @@
     const base = defaultDB();
     try {
       const d = JSON.parse(localStorage.getItem(STORE_KEY));
-      if (d && d.solves) { d.settings = Object.assign(base.settings, d.settings); d.algs = d.algs || {}; return d; }
+      if (d && d.solves) { d.settings = Object.assign(base.settings, d.settings); d.algs = d.algs || {}; return withSync(d); }
     } catch (e) { /* sem dados */ }
-    return base;
+    return withSync(base);
   }
+  // Estado de sincronização: o que ainda falta enviar para a nuvem
+  function withSync(d) { d.dirty = d.dirty || {}; d.tomb = d.tomb || {}; d.algDirty = d.algDirty || {}; return d; }
   let DB = load();
-  function save() {
+  function persist() {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }
     catch (e) { toast('Não foi possível guardar no browser — exporta uma cópia de segurança.'); }
   }
+  function save() { persist(); window.dispatchEvent(new Event('cubolab:change')); }
   const S = () => DB.settings;
   const solves = (pid) => { pid = pid || S().puzzle; return DB.solves[pid] || (DB.solves[pid] = []); };
+  // Cada resolução tem um id estável (o mesmo em todos os dispositivos, também para importações)
+  const sid = (pid, s) => s.id || (s.id = pid + '_' + s.d + '_' + s.t);
+  function touch(pid, s) { sid(pid, s); s.u = Date.now(); DB.dirty[s.id] = { pid, u: s.u }; }
+  function removeSolve(pid, s) {
+    const l = solves(pid), i = l.indexOf(s);
+    if (i < 0) return;
+    l.splice(i, 1); sid(pid, s);
+    delete DB.dirty[s.id];
+    DB.tomb[s.id] = { pid, u: Date.now() };
+  }
   const puzzleName = id => (Cube.PUZZLES.find(p => p.id === id) || {}).name || id;
 
   // ================= Utilidades =================
@@ -208,7 +221,7 @@
     const list = solves();
     const prev = list[list.length - 1];
     const s = { t, p: T.pen, s: T.scr, d: Date.now() };
-    list.push(s); save();
+    list.push(s); touch(S().puzzle, s); save();
     timeEl.textContent = solveStr(s); setCls('');
     if (prev && eff(prev) !== Infinity && eff(s) !== Infinity) {
       const d = eff(s) - eff(prev);
@@ -294,8 +307,8 @@
   $('#lastActions').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return; b.blur();
     const list = solves(), s = list[list.length - 1]; if (!s) return;
-    if (b.hasAttribute('data-del')) { list.pop(); save(); resetDisplay(); renderTimerSide(); toast('Resolução apagada'); return; }
-    s.p = +b.dataset.pen; save(); timeEl.textContent = solveStr(s); renderTimerSide();
+    if (b.hasAttribute('data-del')) { removeSolve(S().puzzle, s); save(); resetDisplay(); renderTimerSide(); toast('Resolução apagada'); return; }
+    s.p = +b.dataset.pen; touch(S().puzzle, s); save(); timeEl.textContent = solveStr(s); renderTimerSide();
   });
   function sideClick(e) {
     if (e.target.closest('[data-more]')) { T.showAll = true; renderTimerSide(); return; }
@@ -319,12 +332,12 @@
       <div class="actions"><button class="btn-danger" id="mDel">Apagar</button><button class="btn-primary" data-close>Fechar</button></div>`);
     m.querySelector('#mPen').onclick = e => {
       const b = e.target.closest('button'); if (!b) return;
-      s.p = +b.dataset.pen; save();
+      s.p = +b.dataset.pen; touch(S().puzzle, s); save();
       m.querySelectorAll('#mPen button').forEach(x => x.classList.toggle('on', x === b));
       m.querySelector('#mTime').textContent = solveStr(s);
     };
-    m.querySelector('#mCom').oninput = e => { s.c = e.target.value || undefined; save(); };
-    m.querySelector('#mDel').onclick = () => { if (confirm('Apagar esta resolução?')) { list.splice(i, 1); save(); closeModal(m); } };
+    m.querySelector('#mCom').oninput = e => { s.c = e.target.value || undefined; touch(S().puzzle, s); save(); };
+    m.querySelector('#mDel').onclick = () => { if (confirm('Apagar esta resolução?')) { removeSolve(S().puzzle, s); save(); closeModal(m); } };
     m.onclose = () => { resetDisplay(); renderPage(); };
   }
   function avgModal(k, i) {
@@ -381,21 +394,26 @@
       });
     };
     m.querySelector('#sExp').onclick = () => {
-      const blob = new Blob([JSON.stringify(DB, null, 1)], { type: 'application/json' });
+      const { dirty, tomb, algDirty, ...exp } = DB; // eslint-disable-line no-unused-vars
+      const blob = new Blob([JSON.stringify(exp, null, 1)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob); a.download = `cubolab-${dayKey(Date.now())}.json`; a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     };
     m.querySelector('#sClr').onclick = () => {
       const n = solves().length;
-      if (n && confirm(`Apagar ${n} resoluções de ${puzzleName(S().puzzle)}? Isto não pode ser desfeito.`)) { DB.solves[S().puzzle] = []; save(); closeModal(m); resetDisplay(); renderPage(); toast('Resoluções apagadas'); }
+      if (n && confirm(`Apagar ${n} resoluções de ${puzzleName(S().puzzle)}? Isto não pode ser desfeito.`)) { solves().slice().forEach(s => removeSolve(S().puzzle, s)); save(); closeModal(m); resetDisplay(); renderPage(); toast('Resoluções apagadas'); }
     };
   }
   function mergeSolves(pid, arr) {
     const list = solves(pid);
     const seen = new Set(list.map(s => s.d + ':' + s.t));
     let added = 0;
-    arr.forEach(s => { if (!seen.has(s.d + ':' + s.t)) { list.push(s); seen.add(s.d + ':' + s.t); added++; } });
+    arr.forEach(s => {
+      if (seen.has(s.d + ':' + s.t)) return;
+      s = { t: s.t, p: s.p || 0, s: s.s || '', d: s.d, c: s.c };
+      list.push(s); touch(pid, s); seen.add(s.d + ':' + s.t); added++;
+    });
     list.sort((a, b) => a.d - b.d);
     return added;
   }
@@ -403,7 +421,7 @@
     if (!data || !data.solves) { toast('Isto não parece uma cópia do CuboLab'); return; }
     let added = 0;
     Object.keys(data.solves).forEach(pid => { added += mergeSolves(pid, data.solves[pid] || []); });
-    Object.assign(DB.algs, data.algs || {});
+    Object.keys(data.algs || {}).forEach(id => { const a = Object.assign({}, data.algs[id]); delete a.u; setAlgData(id, a, true); });
     save(); renderPage(); resetDisplay();
     toast(`Cópia restaurada · ${added} resoluções novas`);
   }
@@ -593,7 +611,12 @@
   // ================= Aprender =================
   const getStatus = id => (DB.algs[id] && DB.algs[id].s) || (ALGS.DEFAULT_LEARNED.includes(id) ? 'learned' : 'todo');
   const myAlg = id => (DB.algs[id] && DB.algs[id].alg) || ALGS.CASES[id].alg;
-  function setAlgData(id, patch) { DB.algs[id] = Object.assign({}, DB.algs[id], patch); save(); }
+  function setAlgData(id, patch, noSave) {
+    const u = Date.now();
+    DB.algs[id] = Object.assign({}, DB.algs[id], patch, { u });
+    DB.algDirty[id] = u;
+    if (!noSave) save();
+  }
   function countSet(set) { const c = { todo: 0, learning: 0, learned: 0 }; set.cases.forEach(id => c[getStatus(id)]++); return c; }
   const svgCache = {};
   function caseSvg(id, arrows) {
@@ -756,6 +779,91 @@
     m.onclose = () => document.removeEventListener('keydown', onKey);
     next();
   }
+
+  // ================= Ponte para a sincronização (sync.js) =================
+  function refreshAfterRemote() {
+    if (T.phase !== 'idle' || T.inInsp) return; // não mexer no ecrã a meio de uma resolução
+    if (currentPage === 'timer' && !diffEl.textContent) resetDisplay();
+    renderPage();
+  }
+  window.CuboLab = {
+    openModal, closeModal, toast, esc, head,
+    // O que falta enviar
+    pending() {
+      const items = [], byPid = {};
+      const find = (pid, id) => {
+        if (!byPid[pid]) { byPid[pid] = new Map(); solves(pid).forEach(s => byPid[pid].set(sid(pid, s), s)); }
+        return byPid[pid].get(id);
+      };
+      Object.entries(DB.dirty).forEach(([id, m]) => {
+        const s = find(m.pid, id);
+        if (!s) { delete DB.dirty[id]; return; }
+        items.push({ id, pid: m.pid, t: s.t, p: s.p || 0, s: s.s || '', d: s.d, c: s.c, u: s.u, del: false });
+      });
+      Object.entries(DB.tomb).forEach(([id, m]) => items.push({ id, pid: m.pid, del: true, u: m.u }));
+      const algs = {};
+      Object.keys(DB.algDirty).forEach(id => { if (DB.algs[id]) algs[id] = Object.assign({}, DB.algs[id]); });
+      return { solves: items, algs };
+    },
+    // Confirmação do servidor: só limpa se não houve alterações entretanto
+    ack(items, algs) {
+      (items || []).forEach(it => {
+        const box = it.del ? DB.tomb : DB.dirty;
+        if (box[it.id] && box[it.id].u === it.u) delete box[it.id];
+      });
+      Object.keys(algs || {}).forEach(id => { if (DB.algDirty[id] === algs[id].u) delete DB.algDirty[id]; });
+      persist();
+    },
+    applyRemote(docs) {
+      let changed = false;
+      const idx = {}, resort = new Set();
+      const map = pid => {
+        if (!idx[pid]) { idx[pid] = new Map(); solves(pid).forEach(s => idx[pid].set(sid(pid, s), s)); }
+        return idx[pid];
+      };
+      docs.forEach(r => {
+        if (!r.pid || !r.id) return;
+        const m = map(r.pid), loc = m.get(r.id);
+        if (r.del) {
+          if (loc && (loc.u || 0) <= r.u) { const l = solves(r.pid); l.splice(l.indexOf(loc), 1); m.delete(r.id); delete DB.dirty[r.id]; changed = true; }
+          return;
+        }
+        const tb = DB.tomb[r.id];
+        if (tb && tb.u >= r.u) return;
+        if (loc) {
+          if ((r.u || 0) > (loc.u || 0)) {
+            Object.assign(loc, { t: r.t, p: r.p || 0, s: r.s || '', d: r.d, u: r.u });
+            if (r.c) loc.c = r.c; else delete loc.c;
+            delete DB.dirty[r.id]; changed = true;
+          }
+          return;
+        }
+        const s = { id: r.id, t: r.t, p: r.p || 0, s: r.s || '', d: r.d, u: r.u };
+        if (r.c) s.c = r.c;
+        solves(r.pid).push(s); m.set(r.id, s); resort.add(r.pid); changed = true;
+      });
+      resort.forEach(pid => solves(pid).sort((a, b) => a.d - b.d));
+      if (changed) { persist(); refreshAfterRemote(); }
+      return changed;
+    },
+    applyRemoteAlgs(remote) {
+      let changed = false;
+      Object.entries(remote || {}).forEach(([id, r]) => {
+        const l = DB.algs[id];
+        if (!l || (r.u || 0) > (l.u || 0)) { DB.algs[id] = r; delete DB.algDirty[id]; changed = true; }
+      });
+      if (changed) { persist(); if (!modalOpen()) refreshAfterRemote(); }
+    },
+    // Primeira ligação de uma conta neste dispositivo: enviar tudo o que já existe
+    markAllDirty() {
+      Object.keys(DB.solves).forEach(pid => DB.solves[pid].forEach(s => {
+        sid(pid, s); if (!s.u) s.u = s.d || Date.now();
+        DB.dirty[s.id] = { pid, u: s.u };
+      }));
+      Object.keys(DB.algs).forEach(id => { const a = DB.algs[id]; if (!a.u) a.u = 1; DB.algDirty[id] = a.u; });
+      persist();
+    }
+  };
 
   // ================= Arranque =================
   setHint();
